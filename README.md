@@ -1,11 +1,13 @@
-# 股票/ETF 回测系统 — BacktestEngine
+# BacktestEngine
 
-![Stars](https://img.shields.io/github/stars/Ideasminer/StockSignalSubscribe?style=flat&logo=github)
-![Forks](https://img.shields.io/github/forks/Ideasminer/StockSignalSubscribe?style=flat&logo=github)
+![Stars](https://img.shields.io/github/stars/Ideasminer/StockSignalSubscribe?style=flat\&logo=github)
+![Forks](https://img.shields.io/github/forks/Ideasminer/StockSignalSubscribe?style=flat\&logo=github)
 ![Issues](https://img.shields.io/github/issues/Ideasminer/StockSignalSubscribe)
 ![Pull Requests](https://img.shields.io/github/issues-pr/Ideasminer/StockSignalSubscribe)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Last Commit](https://img.shields.io/github/last-commit/Ideasminer/StockSignalSubscribe)
+
+**注意：本项目完全由Agent编写；不构成任何投资建议**
 
 ## 目录
 
@@ -34,34 +36,39 @@
 ## 核心功能
 
 ### 回测引擎
+
 - 逐日推进的事件驱动回测引擎
 - 多标的持仓、资金管理与订单执行（支持滑点与手续费）
 - 资金校验机制：最低交易金额、现金预留、持仓上限等多重保障
 - 完整的交易记录与持仓历史追踪
 
 ### 策略体系
-| 模块 | 说明 |
-|------|------|
-| 信号信号 (Signal) | 22 种技术指标信号：MACD 系列 (11 种)、RSI、CCI、布林带、成交量突破、价格动量、均线交叉、新高突破、ATR、量比、上涨家数等 |
-| 买入策略 (Buy) | `AlwaysBuy`、`SignalBuy`（含资金预算管理） |
-| 卖出策略 (Sell) | `AlwaysSell`、`StopLoss`、`SignalSell` |
-| 选股策略 (Selector) | `AllStockSelector`、`TopNSelector` |
-| 策略组合 (Composite) | 将多个子策略组合为完整策略 |
+
+| 模块               | 说明                                                                      |
+| ---------------- | ----------------------------------------------------------------------- |
+| 信号信号 (Signal)    | 22 种技术指标信号：MACD 系列 (11 种)、RSI、CCI、布林带、成交量突破、价格动量、均线交叉、新高突破、ATR、量比、上涨家数等 |
+| 买入策略 (Buy)       | `AlwaysBuy`、`SignalBuy`（含资金预算管理）                                        |
+| 卖出策略 (Sell)      | `AlwaysSell`、`StopLoss`、`SignalSell`                                    |
+| 选股策略 (Selector)  | `AllStockSelector`、`TopNSelector`                                       |
+| 策略组合 (Composite) | 将多个子策略组合为完整策略                                                           |
 
 ### 信号评估系统
-- **IC 分析**：Pearson IC / Rank IC / IC_IR
+
+- **IC 分析**：Pearson IC / Rank IC / IC\_IR
 - **多空组合绩效**：年化收益、夏普比率、最大回撤、胜率
 - **分组收益分析**：分 5/10 组排序、换手率统计
 
 ### 指标体系（共 25+ 项）
-| 类别 | 指标 |
-|------|------|
-| 收益类 | 累计收益率、年化收益率、超额收益、月度/年度胜率 |
-| 风险类 | 最大回撤、最长回撤修复期、年化波动率、下行波动率、VaR/CVaR |
-| 风险调整 | 夏普比率、索提诺比率、卡玛比率、收益回撤比、信息比率 |
-| 交易运作 | 胜率/盈亏比、最大连胜/连亏、平均持仓时间、换手率 |
+
+| 类别   | 指标                                |
+| ---- | --------------------------------- |
+| 收益类  | 累计收益率、年化收益率、超额收益、月度/年度胜率          |
+| 风险类  | 最大回撤、最长回撤修复期、年化波动率、下行波动率、VaR/CVaR |
+| 风险调整 | 夏普比率、索提诺比率、卡玛比率、收益回撤比、信息比率        |
+| 交易运作 | 胜率/盈亏比、最大连胜/连亏、平均持仓时间、换手率         |
 
 ### 可视化图表
+
 - 净值曲线 & 回撤曲线（策略 vs 基准叠加）
 - 月度/年度收益热力图、日度收益分布直方图
 - 滚动指标图（夏普、年化收益）
@@ -69,6 +76,7 @@
 - IC 分布直方图、分组收益对比柱状图、雷达图
 
 ### 订阅日报模块
+
 数据拉取 → 信号计算 → 基本面分析 → HTML 日报生成 → 邮件推送的完整自动化流程。详见[订阅日报模块](#订阅日报模块)。
 
 ## 系统架构
@@ -105,6 +113,7 @@
 ```
 
 **数据流**：
+
 ```
 历史数据 (CSV/Mock) → DataFeed → Engine (逐Bar推进)
                                     ↓
@@ -242,15 +251,15 @@ class MyBuyStrategy(BaseBuyStrategy):
 
 ### 关键文件路径指引
 
-| 用途 | 文件路径 |
-|------|----------|
-| 信号实现 | `backtest/strategies/signal.py` |
-| 买入策略 | `backtest/strategies/buy.py` |
-| 卖出策略 | `backtest/strategies/sell.py` |
-| 条件系统 | `backtest/pipeline/conditions.py` |
-| 收益指标 | `backtest/metrics/returns.py` |
+| 用途     | 文件路径                                    |
+| ------ | --------------------------------------- |
+| 信号实现   | `backtest/strategies/signal.py`         |
+| 买入策略   | `backtest/strategies/buy.py`            |
+| 卖出策略   | `backtest/strategies/sell.py`           |
+| 条件系统   | `backtest/pipeline/conditions.py`       |
+| 收益指标   | `backtest/metrics/returns.py`           |
 | 信号评估指标 | `backtest/metrics/signal_evaluation.py` |
-| 可视化图表 | `backtest/visualization/` |
+| 可视化图表  | `backtest/visualization/`               |
 
 > 新增指标函数后需在 `backtest/metrics/__init__.py` 中注册。
 
@@ -264,22 +273,22 @@ Baostock K线数据 → 14个信号频道计算 → 阈值筛选 → 基本面�
 
 ### 已注册信号频道（14 个）
 
-| 频道名称 | 类别 | 说明 |
-|----------|------|------|
-| MACD 金叉 | MACD | DIF 上穿 DEA |
-| MACD 柱交叉 | MACD | MACD 柱由负转正 |
-| MACD 值交叉 | MACD | MACD 值上穿零轴 |
-| MACD 信号交叉 | MACD | 信号线交叉 |
-| MACD 金叉+柱确认 | MACD | 金叉且柱为正 |
-| MACD 值信号 | MACD | 连续 MACD 值 |
-| MACD 柱信号 | MACD | MACD 柱连续值 |
-| MACD 柱变化 | MACD | 柱变化率 |
-| MACD 收敛 | MACD | 收敛度信号 |
-| RSI 超卖 | 动量 | RSI 低于阈值 |
-| CCI 超卖 | 反转 | CCI 低于阈值 |
-| 成交量突破 | 量价 | 成交量放大 |
-| 价格动量 | 动量 | 价格动量信号 |
-| 布林带 | 反转 | 触及下轨 |
+| 频道名称        | 类别   | 说明         |
+| ----------- | ---- | ---------- |
+| MACD 金叉     | MACD | DIF 上穿 DEA |
+| MACD 柱交叉    | MACD | MACD 柱由负转正 |
+| MACD 值交叉    | MACD | MACD 值上穿零轴 |
+| MACD 信号交叉   | MACD | 信号线交叉      |
+| MACD 金叉+柱确认 | MACD | 金叉且柱为正     |
+| MACD 值信号    | MACD | 连续 MACD 值  |
+| MACD 柱信号    | MACD | MACD 柱连续值  |
+| MACD 柱变化    | MACD | 柱变化率       |
+| MACD 收敛     | MACD | 收敛度信号      |
+| RSI 超卖      | 动量   | RSI 低于阈值   |
+| CCI 超卖      | 反转   | CCI 低于阈值   |
+| 成交量突破       | 量价   | 成交量放大      |
+| 价格动量        | 动量   | 价格动量信号     |
+| 布林带         | 反转   | 触及下轨       |
 
 ### 运行
 
@@ -295,16 +304,16 @@ python run_daily.py --skip-mail  # 跳过邮件发送
 
 测试框架：`unittest`（配合 `pytest` 运行）
 
-| 测试文件 | 覆盖模块 |
-|----------|----------|
-| `test_core.py` | Action/Trade/Position、DataFeed、BacktestEngine、资金校验 |
-| `test_strategies.py` | Buy/Sell 基类、Selector、Composite、资金校验 |
-| `test_metrics.py` | 收益类/风险类/风险调整/交易运作指标 |
-| `test_signal.py` | 11 种 MACD 信号、均线交叉、组合信号、前向偏差隔离、IC 对齐 |
-| `test_new_signals.py` | RSI、CCI、布林带、成交量突破、价格动量、ATR、新高突破等信号 |
-| `test_signal_evaluation.py` | Pearson/Rank IC、前向收益、分组分析、多空组合、换手率 |
-| `test_pipeline.py` | 条件系统、Pipeline 执行、评估指标 |
-| `subscribe/tests/test_subscribe.py` | 信号注册中心、基本面分析、报告生成、数据获取工具函数 |
+| 测试文件                                | 覆盖模块                                               |
+| ----------------------------------- | -------------------------------------------------- |
+| `test_core.py`                      | Action/Trade/Position、DataFeed、BacktestEngine、资金校验 |
+| `test_strategies.py`                | Buy/Sell 基类、Selector、Composite、资金校验                |
+| `test_metrics.py`                   | 收益类/风险类/风险调整/交易运作指标                                |
+| `test_signal.py`                    | 11 种 MACD 信号、均线交叉、组合信号、前向偏差隔离、IC 对齐                |
+| `test_new_signals.py`               | RSI、CCI、布林带、成交量突破、价格动量、ATR、新高突破等信号                 |
+| `test_signal_evaluation.py`         | Pearson/Rank IC、前向收益、分组分析、多空组合、换手率                 |
+| `test_pipeline.py`                  | 条件系统、Pipeline 执行、评估指标                              |
+| `subscribe/tests/test_subscribe.py` | 信号注册中心、基本面分析、报告生成、数据获取工具函数                         |
 
 ```bash
 # 运行全部单元测试
@@ -316,17 +325,18 @@ python -m pytest subscribe/tests/test_subscribe.py -v
 
 ## 依赖
 
-| 包 | 最低版本 | 用途 |
-|----|----------|------|
-| numpy | 1.20.0 | 数值计算与向量化操作 |
-| pandas | 1.3.0 | 数据处理与时间序列 |
-| matplotlib | 3.5.0 | 可视化图表绘制 |
-| seaborn | 0.11.0 | 统计可视化增强 |
-| scipy | 1.7.0 | 科学计算（统计检验等） |
-| baostock | - | A 股数据源（订阅模块） |
-| tqdm | - | 进度条（订阅模块） |
+| 包          | 最低版本   | 用途           |
+| ---------- | ------ | ------------ |
+| numpy      | 1.20.0 | 数值计算与向量化操作   |
+| pandas     | 1.3.0  | 数据处理与时间序列    |
+| matplotlib | 3.5.0  | 可视化图表绘制      |
+| seaborn    | 0.11.0 | 统计可视化增强      |
+| scipy      | 1.7.0  | 科学计算（统计检验等）  |
+| baostock   | -      | A 股数据源（订阅模块） |
+| tqdm       | -      | 进度条（订阅模块）    |
 
 > `baostock` 和 `tqdm` 为订阅日报模块的额外依赖，通过代码中的 `import` 引用，不在 `requirements.txt` 中。请手动安装：
+>
 > ```bash
 > pip install baostock tqdm
 > ```
@@ -342,6 +352,8 @@ python -m pytest subscribe/tests/test_subscribe.py -v
 > 本项目 `subscribe/mail_sender.py` 中的 `SMTP_SERVER`、`SENDER`、`AUTH_CODE`、`DEFAULT_RECEIVERS` 等配置项为示例占位值，使用前请替换为个人配置并确保不被泄露。
 >
 > 建议做法：
+>
 > 1. 将敏感配置移至环境变量或 `.env` 文件
 > 2. 将 `.env` 加入 `.gitignore`
 > 3. 提供 `.env.example` 模板文件供参考
+
