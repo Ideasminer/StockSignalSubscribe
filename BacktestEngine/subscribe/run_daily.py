@@ -15,6 +15,7 @@
   python run_daily.py --max-stocks 50          # 仅处理前50只(测试)
   python run_daily.py --max-pct-change 3.0     # 剔除|涨跌幅|>3%的标的
   python run_daily.py --max-targets 50         # 筛选后目标≤50只
+  python run_daily.py --min-trading-days 60    # 剔除上市<60日的次新股(默认60)
 """
 import argparse
 import os
@@ -125,6 +126,7 @@ def main():
     parser.add_argument("--lookback", type=int, default=180, help="目标交易日数(仅全量模式)")
     parser.add_argument("--max-pct-change", type=float, default=5.0, help="涨跌幅上限(绝对值, %%), 命中后按此过滤")
     parser.add_argument("--max-targets", type=int, default=100, help="多信号筛选后目标股数上限")
+    parser.add_argument("--min-trading-days", type=int, default=60, help="上市不满N个交易日的次新股剔除(0=不剔除)")
     args = parser.parse_args()
 
     ensure_dirs()
@@ -193,7 +195,19 @@ def main():
     if hits.empty:
         print("  涨跌幅过滤后无命中信号，仍生成空报告。", flush=True)
 
-    # Step 2.6: 多信号组合筛选 — 只保留同时被 ≥N 个频道命中的股票
+    # Step 2.6: 次新股过滤 — 剔除上市不满 min_trading_days 个交易日的标的
+    if not hits.empty and args.min_trading_days > 0:
+        code_trading_days = df.groupby("code")["date"].nunique()
+        hit_codes = hits["code"].unique()
+        short_codes = [c for c in hit_codes
+                       if code_trading_days.get(c, 0) < args.min_trading_days]
+        if short_codes:
+            hits = hits[~hits["code"].isin(short_codes)].copy()
+            print(f"  次新股过滤: 上市<{args.min_trading_days}交易日 → 剔除{len(short_codes)}只标的", flush=True)
+    if hits.empty:
+        print("  次新股过滤后无命中信号，仍生成空报告。", flush=True)
+
+    # Step 2.7: 多信号组合筛选 — 只保留同时被 ≥N 个频道命中的股票
     min_signals = 1
     filtered_codes = set()
     if not hits.empty:
