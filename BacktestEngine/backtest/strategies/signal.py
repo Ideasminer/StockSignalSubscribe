@@ -6,6 +6,28 @@ from typing import List, Literal, Optional
 import numpy as np
 import pandas as pd
 
+GAP_DAYS_THRESHOLD = 7
+
+
+def _mark_gap_breaks(df: pd.DataFrame, gap_days: int = GAP_DAYS_THRESHOLD) -> pd.Series:
+    """标记每个标的的数据断点行（与前一行间隔 > gap_days 自然日）
+
+    EMA/rolling 等有状态计算在数据断点后会继承数月前的旧状态，
+    产生虚假交叉信号。对断点行返回 True，信号逻辑中应抑制。
+    """
+    gaps = pd.Series(False, index=df.index)
+    if "date" not in df.columns:
+        return gaps
+    codes = df["code"].unique() if "code" in df.columns else []
+    for code in codes:
+        mask = df["code"] == code
+        idx = df.index[mask]
+        dates = pd.to_datetime(df.loc[idx, "date"])
+        date_diff = dates.diff().dt.days
+        gap_idx = idx[date_diff > gap_days]
+        gaps.loc[gap_idx] = True
+    return gaps
+
 
 class BaseSignal(ABC):
     @abstractmethod
@@ -75,7 +97,10 @@ class MACDGoldenCrossSignal(BaseSignal):
         df = _compute_macd_signal(df, self.fast, self.slow, self.signal)
         prev_dif = df.groupby("code")["dif"].shift(1)
         prev_dea = df.groupby("code")["dea"].shift(1)
-        df["signal_value"] = ((prev_dif <= prev_dea) & (df["dif"] > df["dea"])).astype(int)
+        gap_breaks = _mark_gap_breaks(df)
+        df["signal_value"] = (
+            (prev_dif <= prev_dea) & (df["dif"] > df["dea"]) & (~gap_breaks)
+        ).astype(int)
         return df
 
 
@@ -89,7 +114,10 @@ class MACDDeathCrossSignal(BaseSignal):
         df = _compute_macd_signal(df, self.fast, self.slow, self.signal)
         prev_dif = df.groupby("code")["dif"].shift(1)
         prev_dea = df.groupby("code")["dea"].shift(1)
-        df["signal_value"] = ((prev_dif >= prev_dea) & (df["dif"] < df["dea"])).astype(int)
+        gap_breaks = _mark_gap_breaks(df)
+        df["signal_value"] = (
+            (prev_dif >= prev_dea) & (df["dif"] < df["dea"]) & (~gap_breaks)
+        ).astype(int)
         return df
 
 
@@ -163,8 +191,9 @@ class MACDHistCrossSignal(BaseSignal):
     def compute(self, df: pd.DataFrame) -> pd.DataFrame:
         df = _compute_macd_signal(df, self.fast, self.slow, self.signal)
         prev_hist = df.groupby("code")["macd_hist"].shift(1)
+        gap_breaks = _mark_gap_breaks(df)
         df["signal_value"] = (
-            (prev_hist <= 0) & (df["macd_hist"] > 0)
+            (prev_hist <= 0) & (df["macd_hist"] > 0) & (~gap_breaks)
         ).astype(int)
         return df
 
@@ -178,8 +207,9 @@ class MACDValueCrossSignal(BaseSignal):
     def compute(self, df: pd.DataFrame) -> pd.DataFrame:
         df = _compute_macd_signal(df, self.fast, self.slow, self.signal)
         prev_dif = df.groupby("code")["dif"].shift(1)
+        gap_breaks = _mark_gap_breaks(df)
         df["signal_value"] = (
-            (prev_dif <= 0) & (df["dif"] > 0)
+            (prev_dif <= 0) & (df["dif"] > 0) & (~gap_breaks)
         ).astype(int)
         return df
 
@@ -193,8 +223,9 @@ class MACDSignalCrossSignal(BaseSignal):
     def compute(self, df: pd.DataFrame) -> pd.DataFrame:
         df = _compute_macd_signal(df, self.fast, self.slow, self.signal)
         prev_dea = df.groupby("code")["dea"].shift(1)
+        gap_breaks = _mark_gap_breaks(df)
         df["signal_value"] = (
-            (prev_dea <= 0) & (df["dea"] > 0)
+            (prev_dea <= 0) & (df["dea"] > 0) & (~gap_breaks)
         ).astype(int)
         return df
 
@@ -229,8 +260,9 @@ class MACDGoldenCrossWithHistConfirmSignal(BaseSignal):
         df = _compute_macd_signal(df, self.fast, self.slow, self.signal)
         prev_dif = df.groupby("code")["dif"].shift(1)
         prev_dea = df.groupby("code")["dea"].shift(1)
+        gap_breaks = _mark_gap_breaks(df)
         golden_cross = (prev_dif <= prev_dea) & (df["dif"] > df["dea"])
-        df["signal_value"] = (golden_cross & (df["macd_hist"] > 0)).astype(int)
+        df["signal_value"] = (golden_cross & (df["macd_hist"] > 0) & (~gap_breaks)).astype(int)
         return df
 
 
@@ -249,6 +281,7 @@ class CrossMovingAverageSignal(BaseSignal):
         df = df.copy()
         df = df.sort_values(["code", "date"])
         codes = df["code"].unique()
+        gap_breaks = _mark_gap_breaks(df)
         all_results = []
         for code in codes:
             mask = df["code"] == code
@@ -259,10 +292,11 @@ class CrossMovingAverageSignal(BaseSignal):
             prev_short = ma_short.shift(1)
             prev_long = ma_long.shift(1)
             if self.cross_direction == "golden":
-                signal = ((prev_short <= prev_long) & (ma_short > ma_long)).astype(int)
+                cross = (prev_short <= prev_long) & (ma_short > ma_long)
             else:
-                signal = ((prev_short >= prev_long) & (ma_short < ma_long)).astype(int)
-            all_results.append(pd.DataFrame({"signal_value": signal}, index=idx))
+                cross = (prev_short >= prev_long) & (ma_short < ma_long)
+            cross = cross & (~gap_breaks.loc[idx].values)
+            all_results.append(pd.DataFrame({"signal_value": cross.astype(int)}, index=idx))
         result = pd.concat(all_results).sort_index()
         df["signal_value"] = result["signal_value"]
         return df
@@ -726,6 +760,7 @@ class NewHighBreakoutSignal(BaseSignal):
     def compute(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.copy()
         df = df.sort_values(["code", "date"])
+        gap_breaks = _mark_gap_breaks(df)
         all_results = []
         for code in df["code"].unique():
             mask = df["code"] == code
@@ -733,8 +768,8 @@ class NewHighBreakoutSignal(BaseSignal):
             close = df.loc[idx, "close"].astype(float)
             rolling_max = close.rolling(window=self.period, min_periods=1).max()
             prev_max = rolling_max.shift(1)
-            signal = (close > prev_max).astype(int)
-            all_results.append(pd.DataFrame({"signal_value": signal}, index=idx))
+            new_high = (close > prev_max) & (~gap_breaks.loc[idx].values)
+            all_results.append(pd.DataFrame({"signal_value": new_high.astype(int)}, index=idx))
         result = pd.concat(all_results).sort_index()
         df["signal_value"] = result["signal_value"].values
         return df

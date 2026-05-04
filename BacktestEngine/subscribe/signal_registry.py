@@ -112,8 +112,8 @@ def _default_registry():
             "价格触及2σ布林带下轨(signal<-0.98 → 距均线<-1.96σ)"),
         SignalChannel(
             "MACD收敛", MACDConvergenceSignal(12, 26, 9),
-            ThresholdCondition(-0.5, "gt"), "反转",
-            "|DIF-DEA|<0.5σ，柱体极端收窄，趋势衰竭"),
+            ThresholdCondition(-0.15, "gt"), "反转",
+            "|DIF-DEA|<0.15σ，柱体极度收窄，趋势衰竭"),
 
         # === 量价 ===
         SignalChannel(
