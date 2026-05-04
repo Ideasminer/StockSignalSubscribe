@@ -10,23 +10,12 @@ GAP_DAYS_THRESHOLD = 7
 
 
 def _mark_gap_breaks(df: pd.DataFrame, gap_days: int = GAP_DAYS_THRESHOLD) -> pd.Series:
-    """标记每个标的的数据断点行（与前一行间隔 > gap_days 自然日）
-
-    EMA/rolling 等有状态计算在数据断点后会继承数月前的旧状态，
-    产生虚假交叉信号。对断点行返回 True，信号逻辑中应抑制。
-    """
-    gaps = pd.Series(False, index=df.index)
-    if "date" not in df.columns:
-        return gaps
-    codes = df["code"].unique() if "code" in df.columns else []
-    for code in codes:
-        mask = df["code"] == code
-        idx = df.index[mask]
-        dates = pd.to_datetime(df.loc[idx, "date"])
-        date_diff = dates.diff().dt.days
-        gap_idx = idx[date_diff > gap_days]
-        gaps.loc[gap_idx] = True
-    return gaps
+    if "date" not in df.columns or "code" not in df.columns:
+        return pd.Series(False, index=df.index)
+    date_series = pd.to_datetime(df["date"])
+    date_diff = date_series.diff().dt.days
+    same_code = np.concatenate([[False], df["code"].values[1:] == df["code"].values[:-1]])
+    return pd.Series((date_diff > gap_days) & same_code, index=df.index)
 
 
 class BaseSignal(ABC):
