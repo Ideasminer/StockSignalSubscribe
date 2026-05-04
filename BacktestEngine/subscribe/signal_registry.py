@@ -94,26 +94,26 @@ def _default_registry():
         # === 动量/摆动 ===
         SignalChannel(
             "RSI超卖", RSISignal(14),
-            ThresholdCondition(-0.8, "lt"), "动量",
-            "signal=(RSI-50)/50; <-0.8 → RSI<10，极度超卖"),
+            ThresholdCondition(-0.2, "lt"), "动量",
+            "signal=(RSI-50)/50; <-0.2 → RSI<40，超卖区间"),
         SignalChannel(
             "CCI超卖", CCISignal(20),
-            ThresholdCondition(-1.0, "lt"), "动量",
-            "signal=CCI/200; <-1.0 → CCI<-200，极端超卖"),
+            ThresholdCondition(-0.4, "lt"), "动量",
+            "signal=CCI/200; <-0.4 → CCI<-80，超卖区间"),
         SignalChannel(
             "价格动量", PriceMomentumSignal(20),
-            ThresholdCondition(0.18, "gt"), "动量",
-            "20日收益>18%，极强动量效应"),
+            ThresholdCondition(0.10, "gt"), "动量",
+            "20日收益>10%，强动量效应"),
 
         # === 波动/反转 ===
         SignalChannel(
             "布林带下轨", BollingerBandSignal(20, 2.0),
-            ThresholdCondition(-0.95, "lt"), "反转",
-            "价格触及2σ布林带下轨"),
+            ThresholdCondition(-0.98, "lt"), "反转",
+            "价格触及2σ布林带下轨(signal<-0.98 → 距均线<-1.96σ)"),
         SignalChannel(
             "MACD收敛", MACDConvergenceSignal(12, 26, 9),
-            ThresholdCondition(-1.5, "lt"), "反转",
-            "DIF-DEA柱体极端收窄(>-1.5σ)，趋势衰竭"),
+            ThresholdCondition(-0.5, "gt"), "反转",
+            "|DIF-DEA|<0.5σ，柱体极端收窄，趋势衰竭"),
 
         # === 量价 ===
         SignalChannel(

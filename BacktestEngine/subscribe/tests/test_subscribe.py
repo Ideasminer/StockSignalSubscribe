@@ -51,9 +51,9 @@ class TestSignalRegistry(unittest.TestCase):
         mask = ch.filter(sv)
         hit = set(sv[mask].index)
         self.assertIn("c0", hit)
+        self.assertIn("c2", hit)
         self.assertIn("c3", hit)
         self.assertNotIn("c1", hit)
-        self.assertNotIn("c2", hit)
 
     def test_threshold_channel(self):
         ch = get_channel("价格动量")

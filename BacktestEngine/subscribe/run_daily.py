@@ -13,6 +13,8 @@
   python run_daily.py --skip-fetch             # 跳过数据拉取(用已有csv)
   python run_daily.py --skip-mail              # 跳过邮件发送
   python run_daily.py --max-stocks 50          # 仅处理前50只(测试)
+  python run_daily.py --max-pct-change 3.0     # 剔除|涨跌幅|>3%的标的
+  python run_daily.py --max-targets 50         # 筛选后目标≤50只
 """
 import argparse
 import os
@@ -120,6 +122,8 @@ def main():
     parser.add_argument("--max-stocks", type=int, default=0, help="限制拉取股数(0=全部)")
     parser.add_argument("--full-fetch", action="store_true", help="强制全量拉取(不使用增量拼接)")
     parser.add_argument("--lookback", type=int, default=180, help="目标交易日数(仅全量模式)")
+    parser.add_argument("--max-pct-change", type=float, default=5.0, help="涨跌幅上限(绝对值, %%), 命中后按此过滤")
+    parser.add_argument("--max-targets", type=int, default=100, help="多信号筛选后目标股数上限")
     args = parser.parse_args()
 
     ensure_dirs()
@@ -166,14 +170,27 @@ def main():
     if hits.empty:
         print("  无命中信号，仍生成空报告。", flush=True)
 
-    # Step 2.5: 多信号组合筛选 — 只保留同时被 ≥N 个频道命中的股票
+    # Step 2.5: 涨跌幅过滤 — 剔除当日涨跌过大的标的
+    if not hits.empty and args.max_pct_change > 0:
+        latest_info = df.sort_values("date").groupby("code").last()
+        hit_codes = hits["code"].unique()
+        if "pctChg" in latest_info.columns:
+            pct_map = latest_info.loc[latest_info.index.isin(hit_codes), "pctChg"]
+            extreme = pct_map[abs(pct_map) > args.max_pct_change / 100].index
+            if len(extreme) > 0:
+                hits = hits[~hits["code"].isin(extreme)].copy()
+                print(f"  涨跌幅过滤: |pctChg|>{args.max_pct_change}% → 剔除{len(extreme)}只标的", flush=True)
+    if hits.empty:
+        print("  涨跌幅过滤后无命中信号，仍生成空报告。", flush=True)
+
+    # Step 2.6: 多信号组合筛选 — 只保留同时被 ≥N 个频道命中的股票
     min_signals = 1
     filtered_codes = set()
     if not hits.empty:
         code_signal_count = hits.groupby("code")["channel"].nunique()
         for n in range(2, 15):
             codes_n = set(code_signal_count[code_signal_count >= n].index)
-            if len(codes_n) <= 100:
+            if len(codes_n) <= args.max_targets:
                 min_signals = n
                 filtered_codes = codes_n
                 break
@@ -185,7 +202,7 @@ def main():
             pre_count = hits['code'].nunique()
             hits = hits[hits["code"].isin(filtered_codes)].copy()
             post_count = hits['code'].nunique()
-            print(f"  多信号筛选: ≥{min_signals}个信号 → {post_count}只标的 (从{pre_count}过滤, 阈值≤100)", flush=True)
+            print(f"  多信号筛选: ≥{min_signals}个信号 → {post_count}只标的 (从{pre_count}过滤, 阈值≤{args.max_targets})", flush=True)
 
     if hits.empty:
         print("  筛选后无命中信号，仍生成空报告。", flush=True)
