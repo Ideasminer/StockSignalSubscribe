@@ -18,6 +18,7 @@
 """
 import argparse
 import os
+import re
 import sys
 import time
 from datetime import datetime
@@ -170,13 +171,22 @@ def main():
     if hits.empty:
         print("  无命中信号，仍生成空报告。", flush=True)
 
-    # Step 2.5: 涨跌幅过滤 — 剔除当日涨跌过大的标的
+    # Step 2.5: 涨跌幅过滤 — 剔除指数、保留股票+ETF，再按涨跌幅过滤
+    if not hits.empty:
+        index_prefix = re.compile(r'^(sh\.000|sz\.399)')
+        index_codes = set(c for c in hits["code"].unique() if index_prefix.match(c))
+        if index_codes:
+            hits = hits[~hits["code"].isin(index_codes)].copy()
+            print(f"  指数过滤: 剔除{len(index_codes)}只指数标的", flush=True)
+    if hits.empty:
+        print("  指数过滤后无命中信号，仍生成空报告。", flush=True)
+
     if not hits.empty and args.max_pct_change > 0:
         latest_info = df.sort_values("date").groupby("code").last()
         hit_codes = hits["code"].unique()
         if "pctChg" in latest_info.columns:
             pct_map = latest_info.loc[latest_info.index.isin(hit_codes), "pctChg"]
-            extreme = pct_map[abs(pct_map) > args.max_pct_change / 100].index
+            extreme = pct_map[abs(pct_map) > args.max_pct_change].index
             if len(extreme) > 0:
                 hits = hits[~hits["code"].isin(extreme)].copy()
                 print(f"  涨跌幅过滤: |pctChg|>{args.max_pct_change}% → 剔除{len(extreme)}只标的", flush=True)
