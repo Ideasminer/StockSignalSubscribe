@@ -251,10 +251,11 @@ def main():
 
     # Step 4.5: 大模型解读 (仅在 --llm 启用且存在命中标的时运行)
     llm_conclusions = None
+    llm_ratings = None
     if args.llm and not hits.empty:
         print("\n[LLM] 大模型解读...", flush=True)
         try:
-            llm_conclusions = infer_batch(hits, fundamentals)
+            llm_conclusions, llm_ratings = infer_batch(hits, fundamentals)
             if llm_conclusions:
                 hits["llm_conclusion"] = hits["code"].map(llm_conclusions)
                 print(f"  已拼接 {len(llm_conclusions)} 条解读结果到数据表", flush=True)
@@ -266,7 +267,7 @@ def main():
     # Step 5: 生成报告
     print("\n[4/5] 生成HTML日报...", flush=True)
     report_path = generate_report(hits, fundamentals, OUTPUT_DIR, channel_summary, min_signals,
-                                  llm_conclusions=llm_conclusions)
+                                  llm_conclusions=llm_conclusions, llm_ratings=llm_ratings)
     print(f"  报告: {report_path}", flush=True)
 
     # Step 6: 邮件发送

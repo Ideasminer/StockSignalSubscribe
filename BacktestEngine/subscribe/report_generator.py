@@ -91,13 +91,15 @@ def _mini_bar(values_str: str) -> str:
 
 
 def _format_llm_conclusion(text: str) -> str:
-    """将 LLM * 分段文本转为 HTML 表格单元格"""
+    """将 LLM * 分段文本转为 HTML 表格单元格（跳过评级行）"""
     lines = text.strip().split("\n")
     parts = []
     for line in lines:
         stripped = line.strip()
         if stripped.startswith("* "):
             stripped = stripped[2:]
+        if stripped.startswith("评级") or stripped.startswith("评级:"):
+            continue
         if ":" in stripped:
             label, _, content = stripped.partition(":")
             parts.append(
@@ -110,6 +112,19 @@ def _format_llm_conclusion(text: str) -> str:
     return f'<td class="wrap" style="max-width:240px;font-size:11px;line-height:1.7">{html_body}</td>'
 
 
+_RATING_COLORS = {"S": ("#27ae60", "#eafaf1"), "A": ("#2980b9", "#ebf5fb"),
+                  "B": ("#2c3e50", "#ecf0f1"), "C": ("#d4ac0d", "#fef9e7"),
+                  "D": ("#c0392b", "#fdedec")}
+
+
+def _format_llm_rating(rating: str) -> str:
+    r = rating.strip().upper()
+    if r not in _RATING_COLORS:
+        r = "C"
+    fg, bg = _RATING_COLORS[r]
+    return f'<td style="text-align:center"><span style="display:inline-block;width:28px;height:28px;line-height:28px;border-radius:50%;font-weight:700;font-size:14px;color:{fg};background:{bg}">{r}</span></td>'
+
+
 def generate_report(
     hits: pd.DataFrame,
     fundamentals: pd.DataFrame,
@@ -117,6 +132,7 @@ def generate_report(
     channel_summary: List[dict],
     min_signals: int = 1,
     llm_conclusions: Dict[str, str] | None = None,
+    llm_ratings: Dict[str, str] | None = None,
 ) -> str:
     """生成 HTML 信号日报
 
@@ -127,6 +143,7 @@ def generate_report(
         channel_summary: 每个频道的命中数 [{channel, category, count}]
         min_signals: 多信号筛选阈值 (0或1表示未启用)
         llm_conclusions: 大模型解读结果 {code: conclusion}, None 则不显示该列
+        llm_ratings: 大模型评级 {code: S/A/B/C/D}, None 则不显示
     """
     today_str = datetime.now().strftime("%Y%m%d")
     today_display = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -187,14 +204,18 @@ def generate_report(
             margin_bar = _mini_bar(np_margins)
 
             llm_cell = ""
+            rating_cell = ""
             if has_llm:
                 conclusion = llm_conclusions.get(code, "—")
                 llm_cell = _format_llm_conclusion(conclusion)
+                rating = (llm_ratings or {}).get(code, "C")
+                rating_cell = _format_llm_rating(rating)
 
             table_rows += f"""
             <tr>
                 <td><span class="code-display">{code}</span></td>
                 <td>{name}</td>
+                {rating_cell}
                 <td class="wrap">{signal_tags_html}</td>
                 <td class="wrap" style="text-align:right">{sig_vals_html}</td>
                 <td style="text-align:right">{close_display}</td>
@@ -250,7 +271,9 @@ def generate_report(
 <div class="table-wrap">
 <table>
     <thead><tr>
-        <th>代码</th><th>名称</th><th>信号</th>
+        <th>代码</th><th>名称</th>
+        {f'<th style="text-align:center;width:44px">评级</th>' if has_llm else ''}
+        <th>信号</th>
         <th style="text-align:right">信号值</th><th style="text-align:right">收盘价</th><th style="text-align:right">涨跌幅</th>
         <th style="text-align:right">净利率(Q1-Q4)</th><th style="text-align:right">EPS(Q1-Q4)</th>
         <th>利润趋势</th><th>盈利判断</th><th>详情</th>

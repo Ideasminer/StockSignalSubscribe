@@ -2,16 +2,17 @@
 
 用法:
   from subscribe.llm_infer import infer_batch
-  conclusions = infer_batch(stocks_info, fundamentals, max_concurrency=3)
+  conclusions, ratings = infer_batch(stocks_info, fundamentals, max_concurrency=3)
 
 stocks_info: DataFrame, 需含列 code, code_name, channel, category, signal_value
 fundamentals: DataFrame, 需含列 code, trend, np_margins, eps_ttms
-返回: dict {code: conclusion_string}
+返回: (conclusions: {code: text}, ratings: {code: S/A/B/C/D})
 """
 from __future__ import annotations
 
 import json
 import os
+import re
 import ssl
 import time
 import urllib.request
@@ -51,13 +52,15 @@ def _build_stock_prompt(
 
 SYSTEM_PROMPT = (
     "你是A股量化分析师。请开启联网搜索，结合实时信息与提供的信号数据做研判。"
-    "每只标的输出≤200字，结构固定为5段，用 * 开头分隔，格式如下：\n"
+    "每只标的输出≤200字，结构固定为6段，用 * 开头分隔，格式如下：\n"
+    "* 评级: S/A/B/C/D (S=强烈建议买入,A=建议买入,B=谨慎买入,C=观望,D=回避)\n"
     "* 估值: ...\n"
     "* 信号解读: ...\n"
     "* 财报核心信息: ...\n"
     "* 风险提示: ...\n"
     "* 总体结论: ...\n"
     "禁止使用markdown格式（**、#、-、>、`等），只允许纯文本 + * 分段。"
+    "评级必须为单个大写字母S/A/B/C/D，独占一行。"
     "用中文输出。"
 )
 
@@ -88,6 +91,17 @@ def _call_llm(prompt: str) -> Optional[str]:
         return None
 
 
+def _parse_rating(text: str) -> str:
+    for line in text.split("\n"):
+        s = line.strip()
+        if s.startswith("* 评级:") or s.startswith("* 评级："):
+            for ch in s:
+                if ch in ("S", "A", "B", "C", "D"):
+                    return ch
+    m = re.search(r'\b([SABCD])\b', text[:80])
+    return m.group(1) if m else "C"
+
+
 def infer_single(
     code: str,
     name: str,
@@ -98,16 +112,19 @@ def infer_single(
 ) -> tuple:
     prompt = _build_stock_prompt(code, name, signals, trend, np_margins, eps_ttms)
     result = _call_llm(prompt)
-    return code, result
+    if result:
+        rating = _parse_rating(result)
+        return code, result, rating
+    return code, None, "C"
 
 
 def infer_batch(
     hits: pd.DataFrame,
     fundamentals: pd.DataFrame,
     max_concurrency: int = LLM_MAX_CONCURRENCY,
-) -> Dict[str, str]:
+):
     if hits.empty:
-        return {}
+        return {}, {}
 
     fund_map = {}
     if not fundamentals.empty:
@@ -142,6 +159,7 @@ def infer_batch(
     t0 = time.time()
 
     results: Dict[str, str] = {}
+    ratings: Dict[str, str] = {}
     completed = 0
 
     with ThreadPoolExecutor(max_workers=max_concurrency) as executor:
@@ -152,9 +170,10 @@ def infer_batch(
         for future in as_completed(futures):
             completed += 1
             try:
-                code, content = future.result()
+                code, content, rating = future.result()
                 if content:
                     results[code] = content
+                    ratings[code] = rating
             except Exception as e:
                 code = futures[future]
                 print(f"  [LLM] {code} 失败: {e}", flush=True)
@@ -164,4 +183,4 @@ def infer_batch(
 
     elapsed = time.time() - t0
     print(f"  大模型解读完成: {len(results)}/{len(tasks)} 成功 ({elapsed:.0f}s)", flush=True)
-    return results
+    return results, ratings
