@@ -16,6 +16,7 @@
   python run_daily.py --max-pct-change 3.0     # 剔除|涨跌幅|>3%的标的
   python run_daily.py --max-targets 50         # 筛选后目标≤50只
   python run_daily.py --min-trading-days 60    # 剔除上市<60日的次新股(默认60)
+  python run_daily.py --llm                    # 启用大模型解读(需联网)
 """
 import argparse
 import os
@@ -37,6 +38,7 @@ from subscribe.data_fetcher import fetch_all_daily_data, merge_latest_daily_data
 from subscribe.fundamentals import fetch_fundamentals_batch
 from subscribe.report_generator import generate_report
 from subscribe.mail_sender import send_report_email
+from subscribe.llm_infer import infer_batch
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data")
@@ -127,6 +129,7 @@ def main():
     parser.add_argument("--max-pct-change", type=float, default=5.0, help="涨跌幅上限(绝对值, %%), 命中后按此过滤")
     parser.add_argument("--max-targets", type=int, default=100, help="多信号筛选后目标股数上限")
     parser.add_argument("--min-trading-days", type=int, default=60, help="上市不满N个交易日的次新股剔除(0=不剔除)")
+    parser.add_argument("--llm", action="store_true", help="启用大模型解读(需联网, 默认关闭)")
     args = parser.parse_args()
 
     ensure_dirs()
@@ -246,9 +249,24 @@ def main():
         fundamentals = fetch_fundamentals_batch(hit_codes, delay=0.12)
         print(f"  完成 ({time.time()-t0:.0f}s)", flush=True)
 
+    # Step 4.5: 大模型解读 (仅在 --llm 启用且存在命中标的时运行)
+    llm_conclusions = None
+    if args.llm and not hits.empty:
+        print("\n[LLM] 大模型解读...", flush=True)
+        try:
+            llm_conclusions = infer_batch(hits, fundamentals)
+            if llm_conclusions:
+                hits["llm_conclusion"] = hits["code"].map(llm_conclusions)
+                print(f"  已拼接 {len(llm_conclusions)} 条解读结果到数据表", flush=True)
+            else:
+                print("  大模型未返回有效结果，跳过", flush=True)
+        except Exception as e:
+            print(f"  [LLM] 错误: {e}, 跳过解读步骤", flush=True)
+
     # Step 5: 生成报告
     print("\n[4/5] 生成HTML日报...", flush=True)
-    report_path = generate_report(hits, fundamentals, OUTPUT_DIR, channel_summary, min_signals)
+    report_path = generate_report(hits, fundamentals, OUTPUT_DIR, channel_summary, min_signals,
+                                  llm_conclusions=llm_conclusions)
     print(f"  报告: {report_path}", flush=True)
 
     # Step 6: 邮件发送

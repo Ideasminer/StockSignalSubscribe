@@ -90,12 +90,33 @@ def _mini_bar(values_str: str) -> str:
     return f'<div class="chart-bar">{bars}</div>'
 
 
+def _format_llm_conclusion(text: str) -> str:
+    """将 LLM * 分段文本转为 HTML 表格单元格"""
+    lines = text.strip().split("\n")
+    parts = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("* "):
+            stripped = stripped[2:]
+        if ":" in stripped:
+            label, _, content = stripped.partition(":")
+            parts.append(
+                f'<span style="font-weight:600;color:#2c3e50">{label}:</span>'
+                f'<span style="color:#555">{content}</span>'
+            )
+        else:
+            parts.append(f'<span style="color:#555">{stripped}</span>')
+    html_body = "<br>".join(parts)
+    return f'<td class="wrap" style="max-width:240px;font-size:11px;line-height:1.7">{html_body}</td>'
+
+
 def generate_report(
     hits: pd.DataFrame,
     fundamentals: pd.DataFrame,
     output_dir: str,
     channel_summary: List[dict],
     min_signals: int = 1,
+    llm_conclusions: Dict[str, str] | None = None,
 ) -> str:
     """生成 HTML 信号日报
 
@@ -105,6 +126,7 @@ def generate_report(
         output_dir: 输出目录
         channel_summary: 每个频道的命中数 [{channel, category, count}]
         min_signals: 多信号筛选阈值 (0或1表示未启用)
+        llm_conclusions: 大模型解读结果 {code: conclusion}, None 则不显示该列
     """
     today_str = datetime.now().strftime("%Y%m%d")
     today_display = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -129,6 +151,7 @@ def generate_report(
     signal_names = "MACD金叉/柱转正/零轴上穿/金叉+柱确认, RSI超卖, CCI超卖, 价格动量, 布林带下轨, MACD收敛, 放量突破, 放量阳线, 60日新高, 均线金叉, DIF领先"
 
     # ── 表行: 按 code 聚合, 同股多信号合并到一行 ──
+    has_llm = bool(llm_conclusions)
     table_rows = ""
     if not hits.empty:
         grouped = []
@@ -163,6 +186,11 @@ def generate_report(
             trend_cls = _trend_css(trend)
             margin_bar = _mini_bar(np_margins)
 
+            llm_cell = ""
+            if has_llm:
+                conclusion = llm_conclusions.get(code, "—")
+                llm_cell = _format_llm_conclusion(conclusion)
+
             table_rows += f"""
             <tr>
                 <td><span class="code-display">{code}</span></td>
@@ -176,6 +204,7 @@ def generate_report(
                 <td>{margin_bar}</td>
                 <td class="{trend_cls}">{trend}</td>
                 <td class="wrap">{detail}</td>
+                {llm_cell}
             </tr>"""
 
     # ── 频道汇总表 ──
@@ -225,6 +254,7 @@ def generate_report(
         <th style="text-align:right">信号值</th><th style="text-align:right">收盘价</th><th style="text-align:right">涨跌幅</th>
         <th style="text-align:right">净利率(Q1-Q4)</th><th style="text-align:right">EPS(Q1-Q4)</th>
         <th>利润趋势</th><th>盈利判断</th><th>详情</th>
+        {f'<th style="min-width:180px">AI解读</th>' if has_llm else ''}
     </tr></thead>
     <tbody>{table_rows}</tbody>
 </table>
